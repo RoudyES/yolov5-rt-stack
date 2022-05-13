@@ -64,7 +64,7 @@ class ExtraPreProcess(nn.Module):
         super(ExtraPreProcess, self).__init__()
         self.yoloModel = model
         
-    def forward(x):
+    def forward(self, x):
         x[0] = x[0].permute(2,0,1)/255
         y = self.yoloModel(x)
         return y
