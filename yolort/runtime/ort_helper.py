@@ -59,6 +59,15 @@ def export_onnx(
 
     onnx_builder.to_onnx(onnx_path)
 
+class ExtraPreProcess(nn.Module):
+    def __init__(self, model):
+        super(ExtraPreProcess, self).__init__()
+        self.yoloModel = model
+        
+    def forward(x):
+        x[0] = x[0].permute(2,0,1)/255
+        y = self.yoloModel(x)
+        return y
 
 class ONNXBuilder:
     """
@@ -172,7 +181,7 @@ class ONNXBuilder:
             }
         if self._batch_size == 1:
             return {
-                "image": {1: "height", 2: "width"},
+                "image": {0: "height", 1: "width"},
                 "box": {0: "num_objects"},
                 "label": {0: "num_objects"},
                 "score": {0: "num_objects"},
@@ -180,7 +189,7 @@ class ONNXBuilder:
 
         dynamic_axes = {}
         for i in range(self._batch_size):
-            dynamic_axes[f"image{i + 1}"] = {1: "height", 2: "width"}
+            dynamic_axes[f"image{i + 1}"] = {0: "height", 1: "width"}
             dynamic_axes[f"box{i + 1}"] = {0: "num_objects"}
             dynamic_axes[f"label{i + 1}"] = {0: "num_objects"}
             dynamic_axes[f"score{i + 1}"] = {0: "num_objects"}
@@ -190,9 +199,9 @@ class ONNXBuilder:
         if self._skip_preprocess:
             return torch.rand(1, 3, 640, 640)
         if self._batch_size == 1:
-            return [torch.rand(3, 640, 640)]
+            return [torch.rand(640, 640, 3)]
 
-        return [torch.rand(3, 640, 640)] * self._batch_size
+        return [torch.rand(640, 640, 3)] * self._batch_size
 
     @torch.no_grad()
     def to_onnx(self, onnx_path: str, **kwargs):
@@ -203,9 +212,9 @@ class ONNXBuilder:
             onnx_path (string): The path to the ONNX graph to be exported.
             **kwargs: Will be passed to torch.onnx.export function.
         """
-
+        newModel = ExtraPreProcess(self.model)
         torch.onnx.export(
-            self.model,
+            newModel,
             self.input_sample,
             onnx_path,
             do_constant_folding=True,
